@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Morse Code Keychain</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f141a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Morse">
+<style>
+  :root{
+    --page:#1a211d;
+    --plate:#0f141a;
+    --line:#7f8c99;
+    --ink:#cfd6dd;
+    --dim:#6c7783;
+    --amber:#ffb347;
+    --amber-d:#3a2a10;
+    --bezel-a:#d4d8dc;
+    --bezel-b:#858c93;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background:var(--page);
+    color:var(--ink);
+    font-family:"Avenir Next Condensed","Arial Narrow","Helvetica Neue",Arial,sans-serif;
+    font-weight:300;
+    display:flex;justify-content:center;
+    padding:max(16px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color:transparent;
+  }
+  .app{
+    width:100%;max-width:980px;
+    display:grid;gap:22px;
+    grid-template-columns:1fr;
+    align-items:start;
+  }
+  @media (min-width:820px){
+    .app{grid-template-columns:minmax(0,420px) 1fr;gap:44px;padding-top:12px}
+  }
+
+  /* keychain */
+  .tag{
+    padding:7px;border-radius:22px;
+    background:linear-gradient(145deg,var(--bezel-a),var(--bezel-b));
+    box-shadow:0 18px 40px rgba(0,0,0,.45);
+    width:100%;max-width:420px;margin:0 auto;
+  }
+  .tag svg{display:block;width:100%;height:auto;border-radius:16px}
+  .plate{fill:var(--plate)}
+  .edge{stroke:var(--line);stroke-width:3;stroke-linecap:round;transition:stroke .2s}
+  .edge.on{stroke:var(--amber)}
+  .node rect,.node circle{fill:var(--plate);stroke:var(--line);stroke-width:2.5;transition:fill .15s,stroke .15s}
+  .node text{fill:var(--ink);font-size:19px;font-weight:400;text-anchor:middle;dominant-baseline:central;transition:fill .15s;font-family:inherit}
+  .node.on rect,.node.on circle{stroke:var(--amber)}
+  .node.on text{fill:var(--amber)}
+  .node.next rect,.node.next circle{stroke:var(--amber);stroke-dasharray:4 3}
+  .node.cur rect,.node.cur circle{fill:var(--amber);stroke:var(--amber)}
+  .node.cur text{fill:#1b1204}
+  .title{fill:var(--ink);font-size:44px;font-weight:300;font-family:inherit;letter-spacing:.5px}
+  .ant{stroke:var(--line);fill:none;stroke-width:3;stroke-linejoin:round;transition:stroke .2s}
+  .ant.on{stroke:var(--amber)}
+  .hole{fill:var(--page)}
+
+  /* readout */
+  .panel{display:grid;gap:18px}
+  .read{
+    display:grid;grid-template-columns:auto 1fr;gap:6px 22px;align-items:center;
+    min-height:104px;
+  }
+  .letter{
+    grid-row:span 2;
+    font-size:92px;line-height:1;font-weight:300;min-width:1.1ch;text-align:center;
+    color:var(--amber);
+  }
+  .letter.empty{color:var(--dim)}
+  .seq{display:flex;gap:10px;align-items:center;min-height:22px;flex-wrap:wrap}
+  .g{display:inline-block;background:var(--amber)}
+  .g.dot{width:14px;height:14px;border-radius:50%}
+  .g.dash{width:38px;height:14px;border-radius:3px}
+  .hint{font-size:17px;color:var(--dim);min-height:24px}
+  .hint.err{color:#ff8a6b}
+
+  .msgwrap{border-top:1px solid #2b342f;padding-top:14px}
+  .msg{
+    font-size:34px;letter-spacing:3px;min-height:44px;word-break:break-all;font-weight:400;
+  }
+  .msg.empty{color:var(--dim);font-size:19px;letter-spacing:0;font-weight:300}
+  .bar{height:3px;background:#2b342f;border-radius:2px;overflow:hidden;margin-top:8px}
+  .bar i{display:block;height:100%;width:100%;background:var(--amber);transform-origin:left;transform:scaleX(0)}
+
+  /* key */
+  .key{
+    position:relative;overflow:hidden;
+    width:100%;height:132px;border:2px solid var(--line);border-radius:18px;
+    background:#121a16;color:var(--ink);
+    font:inherit;font-size:24px;font-weight:400;
+    touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    outline:none;
+  }
+  .key:focus-visible{outline:3px solid var(--amber);outline-offset:3px}
+  .key::before{
+    content:"";position:absolute;inset:0;background:var(--amber-d);
+    transform:scaleX(0);transform-origin:left;transition:transform 0s;
+  }
+  .key.down::before{transform:scaleX(1);transition:transform var(--hold,200ms) linear}
+  .key.dash::before{background:var(--amber)}
+  .key.dash{color:#1b1204;border-color:var(--amber)}
+  .key span{position:relative}
+  .key small{font-size:16px;font-weight:300;opacity:.75}
+  .key.shake{animation:shake .25s}
+  @keyframes shake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row button{
+    font:inherit;font-size:17px;color:var(--ink);background:transparent;
+    border:1px solid #3a4540;border-radius:10px;padding:10px 16px;cursor:pointer;
+  }
+  .row button:hover{border-color:var(--line)}
+  .row button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .settings{
+    display:grid;gap:8px;padding:16px;border:1px solid #3a4540;border-radius:14px;background:#141c18;
+  }
+  .settings[hidden]{display:none}
+  .settings label{display:flex;justify-content:space-between;font-size:18px;margin-top:6px}
+  .settings output{color:var(--amber);font-weight:400}
+  .settings input[type=range]{width:100%;accent-color:var(--amber);height:32px}
+  .settings button{
+    justify-self:start;margin-top:8px;font:inherit;font-size:16px;color:var(--ink);background:transparent;
+    border:1px solid #3a4540;border-radius:10px;padding:8px 14px;cursor:pointer;
+  }
+  .settings button:focus-visible,.settings input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .row button[aria-expanded="true"]{border-color:var(--amber);color:var(--amber)}
+  @media (prefers-reduced-motion:reduce){
+    .key.shake{animation:none}
+    .node rect,.node circle,.node text,.edge{transition:none}
+  }
+</style>
+</head>
+<body>
+<main class="app">
+
+  <div class="tag" aria-label="Morse code tree">
+    <svg id="svg" viewBox="0 0 620 740" role="img" aria-label="Morse code decision tree"></svg>
+  </div>
+
+  <section class="panel">
+    <div class="read" aria-live="polite">
+      <div class="letter empty" id="letter">–</div>
+      <div class="seq" id="seq"></div>
+      <div class="hint" id="hint">Tap for a dot. Hold for a dash.</div>
+    </div>
+
+    <button class="key" id="key" aria-label="Morse key. Tap for dot, hold for dash. Space or Enter also work.">
+      <span id="keyMain">Tap · Hold</span>
+      <small id="keySub">dot / dash</small>
+    </button>
+
+    <div class="msgwrap">
+      <div class="msg empty" id="msg">Your letters appear here after a pause.</div>
+      <div class="bar"><i id="bar"></i></div>
+    </div>
+
+    <div class="row">
+      <button id="back">Back one step</button>
+      <button id="space">Add space</button>
+      <button id="clear">Clear</button>
+      <button id="snd" aria-pressed="true">Sound on</button>
+      <button id="settingsBtn" aria-expanded="false" aria-controls="settings">Settings</button>
+    </div>
+
+    <div class="settings" id="settings" hidden>
+      <label for="holdRange">
+        <span>Dash hold time</span>
+        <output id="holdOut">200 ms</output>
+      </label>
+      <input type="range" id="holdRange" min="80" max="600" step="10" value="200">
+
+      <label for="pauseRange">
+        <span>Time until letter appears</span>
+        <output id="pauseOut">1.5 s</output>
+      </label>
+      <input type="range" id="pauseRange" min="500" max="4000" step="100" value="1500">
+
+      <button id="resetDefaults">Reset to defaults</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  let HOLD_MS = 200;         // press longer than this = dash
+  let COMMIT_MS = 1500;      // pause after a letter before it is added
+
+  // [letter, x, y, parent, symbol]  symbol: '.' = circle, '-' = rectangle
+  const defs = [
+    ['T',250,160,'root','-'], ['M',167,160,'T','-'], ['O',82,160,'M','-'],
+    ['G',167,245,'M','.'], ['Q',82,245,'G','-'], ['Z',167,330,'G','.'],
+    ['N',250,415,'T','.'], ['K',167,415,'N','-'], ['Y',82,415,'K','-'], ['C',167,500,'K','.'],
+    ['D',250,585,'N','.'], ['X',167,588,'D','-'], ['B',250,675,'D','.'],
+    ['E',358,160,'root','.'], ['I',423,160,'E','.'], ['S',487,160,'I','.'], ['H',548,160,'S','.'],
+    ['U',423,245,'I','-'], ['F',423,330,'U','.'], ['V',487,245,'S','-'],
+    ['A',358,415,'E','-'], ['R',423,415,'A','.'], ['L',487,415,'R','.'],
+    ['W',358,585,'A','-'], ['P',423,585,'W','.'], ['J',358,675,'W','-']
+  ];
+  const nodes = { root:{ id:'root', x:305, y:160, parent:null, sym:'', kids:{} } };
+  defs.forEach(([id,x,y,parent,sym]) => { nodes[id] = { id,x,y,parent,sym,kids:{} }; });
+  defs.forEach(([id,,,parent,sym]) => { nodes[parent].kids[sym] = id; });
+  const codeOf = id => { let c=''; while (id!=='root'){ c = nodes[id].sym + c; id = nodes[id].parent; } return c; };
+
+  /* ---------- draw the plate ---------- */
+  const svg = document.getElementById('svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  let html = `<rect class="plate" x="0" y="0" width="620" height="740"/>
+    <text class="title" x="75" y="68">MORSE</text>
+    <text class="title" x="370" y="68">CODE</text>
+    <circle class="hole" cx="572" cy="38" r="22"/>`;
+  // edges first (behind nodes)
+  html += `<line class="edge" id="e-root-ant" x1="305" y1="160" x2="305" y2="112" style="display:none"/>`;
+  defs.forEach(([id,,,parent]) => {
+    const a = nodes[parent], b = nodes[id];
+    html += `<line class="edge" id="e-${id}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"/>`;
+  });
+  // antenna (root)
+  html += `<g id="n-root"><path class="ant" id="ant" d="M305 160 V108 M305 108 L282 70 H328 Z M305 108 V82"/></g>`;
+  defs.forEach(([id,x,y,,sym]) => {
+    html += `<g class="node" id="n-${id}">` +
+      (sym === '-'
+        ? `<rect x="${x-29}" y="${y-15}" width="58" height="30" rx="3"/>`
+        : `<circle cx="${x}" cy="${y}" r="19"/>`) +
+      `<text x="${x}" y="${y+1}">${id}</text></g>`;
+  });
+  svg.innerHTML = html;
+
+  /* ---------- state ---------- */
+  const $ = id => document.getElementById(id);
+  const el = { letter:$('letter'), seq:$('seq'), hint:$('hint'), msg:$('msg'), bar:$('bar'),
+               key:$('key'), keyMain:$('keyMain'), keySub:$('keySub') };
+  let cur = 'root';
+  let message = '';
+  let commitTimer = null;
+  let soundOn = true;
+
+  function pathIds(){ const p=[]; let id=cur; while(id!=='root'){ p.unshift(id); id=nodes[id].parent; } return p; }
+
+  function render(){
+    const p = pathIds();
+    // highlight path
+    Object.keys(nodes).forEach(id => {
+      if (id==='root') return;
+      const g = $('n-'+id), e = $('e-'+id);
+      g.classList.toggle('on', p.includes(id));
+      g.classList.toggle('cur', id===cur);
+      g.classList.toggle('next', Object.values(nodes[cur].kids).includes(id));
+      e.classList.toggle('on', p.includes(id));
+    });
+    $('ant').classList.toggle('on', cur!=='root');
+    // readout
+    const code = codeOf(cur);
+    el.seq.innerHTML = [...code].map(s => `<span class="g ${s==='.'?'dot':'dash'}"></span>`).join('');
+    if (cur==='root'){ el.letter.textContent='–'; el.letter.classList.add('empty'); }
+    else { el.letter.textContent=cur; el.letter.classList.remove('empty'); }
+    // message
+    if (message){ el.msg.textContent = message; el.msg.classList.remove('empty'); }
+    else { el.msg.textContent = 'Your letters appear here after a pause.'; el.msg.classList.add('empty'); }
+  }
+
+  function setHint(text, err){ el.hint.textContent = text; el.hint.classList.toggle('err', !!err); }
+
+  function startCommit(){
+    clearTimeout(commitTimer);
+    el.bar.style.transition = 'none'; el.bar.style.transform = 'scaleX(0)';
+    if (cur==='root') return;
+    void el.bar.offsetWidth;
+    el.bar.style.transition = `transform ${COMMIT_MS}ms linear`;
+    el.bar.style.transform = 'scaleX(1)';
+    commitTimer = setTimeout(commit, COMMIT_MS);
+  }
+  function cancelCommit(){
+    clearTimeout(commitTimer);
+    el.bar.style.transition = 'none'; el.bar.style.transform = 'scaleX(0)';
+  }
+  function commit(){
+    if (cur==='root') return;
+    message += cur;
+    setHint(`${cur} added. Start the next letter.`);
+    cur = 'root';
+    el.bar.style.transition = 'none'; el.bar.style.transform = 'scaleX(0)';
+    render();
+  }
+
+  function step(sym){
+    const next = nodes[cur].kids[sym];
+    if (!next){
+      el.key.classList.remove('shake'); void el.key.offsetWidth; el.key.classList.add('shake');
+      const word = sym==='.' ? 'dot' : 'dash';
+      setHint(cur==='root' ? 'Try again.' : `No letter after ${word} from ${cur}.`, true);
+      startCommit();
+      return;
+    }
+    cur = next;
+    const kids = Object.keys(nodes[cur].kids);
+    if (!kids.length) setHint(`${cur} is the end of this branch.`);
+    else setHint(kids.length===2 ? 'Dot or dash next.' : (kids[0]==='.' ? 'Only a dot continues.' : 'Only a dash continues.'));
+    render();
+    startCommit();
+  }
+
+  /* ---------- sound ---------- */
+  let ac=null, osc=null, gain=null;
+  function toneOn(){
+    if (!soundOn) return;
+    try{
+      ac = ac || new (window.AudioContext||window.webkitAudioContext)();
+      if (ac.state==='suspended') ac.resume();
+      osc = ac.createOscillator(); gain = ac.createGain();
+      osc.type='sine'; osc.frequency.value=620;
+      gain.gain.setValueAtTime(0,ac.currentTime);
+      gain.gain.linearRampToValueAtTime(.18,ac.currentTime+.01);
+      osc.connect(gain).connect(ac.destination); osc.start();
+    }catch(e){}
+  }
+  function toneOff(){
+    if (!osc) return;
+    try{
+      gain.gain.cancelScheduledValues(ac.currentTime);
+      gain.gain.setValueAtTime(gain.gain.value,ac.currentTime);
+      gain.gain.linearRampToValueAtTime(0,ac.currentTime+.02);
+      osc.stop(ac.currentTime+.03);
+    }catch(e){}
+    osc=null; gain=null;
+  }
+
+  /* ---------- key: tap = dot, hold = dash ---------- */
+  let pressing=false, isDash=false, holdTimer=null;
+  el.key.style.setProperty('--hold', HOLD_MS+'ms');
+
+  function press(){
+    if (pressing) return;
+    pressing=true; isDash=false;
+    cancelCommit();
+    el.key.classList.add('down');
+    el.keyMain.textContent = 'Dot'; el.keySub.textContent = 'keep holding for a dash';
+    toneOn();
+    holdTimer = setTimeout(() => {
+      isDash = true;
+      el.key.classList.add('dash');
+      el.keyMain.textContent = 'Dash'; el.keySub.textContent = 'release to send';
+    }, HOLD_MS);
+  }
+  function release(){
+    if (!pressing) return;
+    pressing=false;
+    clearTimeout(holdTimer);
+    toneOff();
+    el.key.classList.remove('down','dash');
+    el.keyMain.textContent = 'Tap · Hold'; el.keySub.textContent = 'dot / dash';
+    step(isDash ? '-' : '.');
+  }
+
+  el.key.addEventListener('pointerdown', e => { e.preventDefault(); el.key.setPointerCapture(e.pointerId); press(); });
+  el.key.addEventListener('pointerup', release);
+  el.key.addEventListener('pointercancel', release);
+  el.key.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('keydown', e => {
+    if ((e.code==='Space' || e.code==='Enter') && !e.repeat){ e.preventDefault(); press(); }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code==='Space' || e.code==='Enter'){ e.preventDefault(); release(); }
+  });
+
+  /* ---------- extras ---------- */
+  $('back').onclick = () => {
+    if (cur==='root'){ message = message.slice(0,-1); setHint('Last letter removed.'); }
+    else { cur = nodes[cur].parent; setHint('Stepped back.'); }
+    render(); startCommit();
+  };
+  $('space').onclick = () => { if (cur!=='root') commit(); message += ' '; render(); setHint('Space added.'); };
+  $('clear').onclick = () => { cancelCommit(); cur='root'; message=''; render(); setHint('Tap for a dot. Hold for a dash.'); };
+  $('snd').onclick = e => {
+    soundOn = !soundOn;
+    e.currentTarget.textContent = soundOn ? 'Sound on' : 'Sound off';
+    e.currentTarget.setAttribute('aria-pressed', soundOn);
+  };
+
+  /* ---------- settings ---------- */
+  const holdRange = $('holdRange'), pauseRange = $('pauseRange');
+  function applySettings(){
+    HOLD_MS = +holdRange.value;
+    COMMIT_MS = +pauseRange.value;
+    el.key.style.setProperty('--hold', HOLD_MS+'ms');
+    $('holdOut').textContent = HOLD_MS + ' ms';
+    $('pauseOut').textContent = (COMMIT_MS/1000).toFixed(1) + ' s';
+  }
+  holdRange.addEventListener('input', applySettings);
+  pauseRange.addEventListener('input', applySettings);
+  $('settingsBtn').onclick = e => {
+    const panel = $('settings');
+    panel.hidden = !panel.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!panel.hidden));
+  };
+  $('resetDefaults').onclick = () => { holdRange.value = 200; pauseRange.value = 1500; applySettings(); };
+
+  render();
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
